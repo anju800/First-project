@@ -1,0 +1,58 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objs as go
+from datetime import datetime, timedelta
+
+# App title
+st.title("📊 Real-Time Stock Market Dashboard")
+
+# Sidebar for user input
+st.sidebar.header("Stock Selection")
+ticker = st.sidebar.text_input("Enter Stock Symbol (e.g., AAPL, TSLA, MSFT)", "AAPL")
+start_date = st.sidebar.date_input("Start Date", datetime.today() - timedelta(days=30))
+end_date = st.sidebar.date_input("End Date", datetime.today())
+
+# Fetch data
+@st.cache_data(ttl=60)
+def load_data(ticker, start, end):
+    data = yf.download(ticker, start=start, end=end)
+    data.reset_index(inplace=True)
+    return data
+
+try:
+    data = load_data(ticker, start_date, end_date)
+
+    # Display last price
+    st.subheader(f"{ticker} Closing Price")
+    st.metric(label="Latest Close", value=f"${data['Close'].iloc[-1]:.2f}")
+
+    # Line chart using Plotly
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data['Date'], y=data['Close'], mode='lines', name='Close Price'))
+    fig.update_layout(title=f"{ticker} Stock Price Over Time",
+                      xaxis_title="Date",
+                      yaxis_title="Price (USD)",
+                      template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show data table
+    st.subheader("📄 Raw Data")
+    st.dataframe(data.tail(10))
+
+    # Technical Indicators
+    st.subheader("📉 Simple Moving Average (SMA)")
+    sma_window = st.slider("SMA Window", min_value=5, max_value=50, value=20)
+    data['SMA'] = data['Close'].rolling(window=sma_window).mean()
+
+    fig_sma = go.Figure()
+    fig_sma.add_trace(go.Scatter(x=data['Date'], y=data['Close'], mode='lines', name='Close Price'))
+    fig_sma.add_trace(go.Scatter(x=data['Date'], y=data['SMA'], mode='lines', name=f'{sma_window}-Day SMA'))
+    fig_sma.update_layout(title=f"{ticker} Closing Price with SMA",
+                          xaxis_title="Date",
+                          yaxis_title="Price (USD)",
+                          template="plotly_dark")
+    st.plotly_chart(fig_sma, use_container_width=True)
+
+except Exception as e:
+    st.error(f"Error loading stock data: {e}")
